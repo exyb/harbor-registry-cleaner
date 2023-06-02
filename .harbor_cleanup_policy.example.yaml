@@ -1,0 +1,16 @@
+policies:
+  - name: Policies for cleanup docker images
+    rules:
+      - rule: SaveLastNProdTags
+        regexp: '^v\d+\.\d+\.\d+$'
+        limit: 2
+      - rule: SaveLastNStagingTags
+        regexp: '^v\d+\.\d+\.\d+.+'
+        limit: 2
+      - rule: DeleteOlderThan
+        days: 3
+      - rule: SaveLastNFeatureTags
+        limit: 3
+      - rule: IgnoreTags
+        tags:
+          - "feature-branch"
