@@ -6,7 +6,7 @@ def regexp_match(exp: str, string: str) -> bool:
 
 
 def extract_semver(tag: str) -> str:
-    match = re.search(r'\d+\.\d+\.\d+', tag)
+    match = re.search(r'\w+_\d+(?:_\w+)?', tag)
     if match:
         return match.group(0)
     return ""

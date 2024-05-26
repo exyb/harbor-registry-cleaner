@@ -1,0 +1,33 @@
+policies:
+  - name: Policies for cleanup docker images
+    rules:
+      - name: 'keep master clean'
+        type: DeleteByTimeInName
+        regexp: '^master_.*'
+        limit: 10
+      - type: DeleteByTagName
+        regexp: '^dev_.*'
+        limit: 20
+      - type: DeleteByTagName
+        regexp: '^p0_.*'
+        limit: 2
+      - type: DeleteByTagName
+        regexp: '^project_.*'
+        limit: 3
+      - type: DeleteByTagName
+        regexp: '^p1.*'
+        limit: 10
+      - type: DeleteByCreateTime
+        regexp: '.*'
+        days: 45
+      - type: IgnoreRepos
+        repos:
+          - "base"
+          - "ci"
+          - "mysql"
+      - type: IgnoreTags
+        tags:
+          - "latest"
+          - "2.0.0"
+          - "1.0.0"
+          - "1.5.0"

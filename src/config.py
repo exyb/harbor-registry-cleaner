@@ -5,22 +5,21 @@ import os
 DEFAULT_POLICIES = [{
     'name': 'Default Policy',
     'rules': [
-        {'rule': 'DeleteOlderThan', 'days': 7},
-        {'rule': 'SaveLastNProdTags', 'regexp': r'^v\d+\.\d+\.\d+$', 'limit': 5},
-        {'rule': 'SaveLastNStagingTags', 'regexp': r'^v\d+\.\d+\.\d+.+', 'limit': 5},
-        {'rule': 'SaveLastNFeatureTags', 'limit': 10},
-        {'rule': 'IgnoreTags', 'tags': []}
+        {'type': 'DeleteByTimeInName', 'regexp': r'^.*$', 'limit': 100 },
+        {'type': 'DeleteByCreateTime', 'days': 31},
+        {'type': 'DeleteByTagName', 'regexp': r'^.*$', 'limit': 100},
+        {'type': 'IgnoreTags', 'tags': []}
     ]
 }]
 
 
 def load_cleanup_policy():
     """
-    Load Harbor cleanup policy from .harbor_cleanup_policy.yaml file or return default policies
+    Load Harbor cleanup policy from harbor_cleanup_policy.yaml file or return default policies
     """
     # Check if .harbor_cleanup_policy.yaml file exists
-    if os.path.exists(".harbor_cleanup_policy.yaml"):
-        with open(".harbor_cleanup_policy.yaml", "r") as f:
+    if os.path.exists("harbor_cleanup_policy.yaml"):
+        with open("harbor_cleanup_policy.yaml", "r") as f:
             cleanup_policy = yaml.safe_load(f)
         # Check if policies key exists in cleanup_policy dict
         if "policies" in cleanup_policy:
@@ -33,35 +32,36 @@ def validate_rule(rule):
     """
     Validate that rule has the required fields
     """
-    if "rule" not in rule:
-        raise ValueError("Missing 'rule' field in rule")
-    if rule["rule"] not in ["SaveLastNTags", "DeleteOlderThan", "SaveLastNProdTags", "SaveLastNStagingTags",
-                            "SaveLastNFeatureTags", "IgnoreTags"]:
+    if "type" not in rule:
+        raise ValueError("Missing 'type' field in rule")
+
+    if rule["type"] not in ["DeleteByTimeInName", "DeleteByTagName", "DeleteByCreateTime", "IgnoreRepos", "IgnoreTags"]:
         raise ValueError(f"The rule {rule['rule']} is wrong")
-    if rule["rule"] == "DeleteOlderThan" and "days" not in rule:
+
+    if rule["type"] in ["DeleteByCreateTime"] and "days" not in rule:
         raise ValueError("Missing 'days' field in rule")
-    if rule["rule"] == "SaveLastNProdTags" and "regexp" not in rule:
-        raise ValueError("Missing 'regexp' field in rule")
-    if rule["rule"] == "SaveLastNProdTags" and "limit" not in rule:
+
+    if rule["type"] in ["DeleteByTimeInName", "DeleteByTagName", "DeleteByCreateTime",] and "regexp" not in rule:
+        raise ValueError(f"Missing 'regexp' field in rule {rule[type]}")
+
+    if rule["type"] in ["DeleteByTimeInName", "DeleteByTagName"] and rule["limit"] < 1:
+        raise ValueError(f"Missing 'limit' field in rule {rule[type]} should be more then 1")
+
+    if rule["type"] in ["DeleteByTimeInName", "DeleteByTagName"] and "limit" not in rule:
         rule["limit"] = next(
-            (d['limit'] for d in DEFAULT_POLICIES[0]["rules"] if 'SaveLastNProdTags' in d.get('rule', '')))
-    if rule["rule"] == "SaveLastNProdTags" and rule["limit"] < 1:
-        raise ValueError("Missing 'limit' field in rule should be more then 1")
-    if rule["rule"] == "SaveLastNStagingTags" and "regexp" not in rule:
-        raise ValueError("Missing 'regexp' field in rule")
-    if rule["rule"] == "SaveLastNStagingTags" and "limit" not in rule:
-        rule["limit"] = next(
-            (d['limit'] for d in DEFAULT_POLICIES[0]["rules"] if 'SaveLastNStagingTags' in d.get('rule', '')))
-    if rule["rule"] == "SaveLastNStagingTags" and rule["limit"] < 1:
-        raise ValueError("Missing 'limit' field in rule should be more then 1")
-    if rule["rule"] == "SaveLastNFeatureTags" and "limit" not in rule:
-        raise ValueError("Missing 'limit' field in rule")
-    if rule["rule"] == "IgnoreTags" and "tags" not in rule:
-        raise ValueError("Missing 'tags' field in rule")
+            (d['limit'] for d in DEFAULT_POLICIES[0]["rules"] if 'DeleteByTagName' in d.get('rule', '')))
+
+    if rule["type"] == "IgnoreTags" and "tags" not in rule:
+        raise ValueError(f"Missing 'tags' field in rule {rule[type]}")
+
+    if rule["type"] == "IgnoreRepos" and "repos" not in rule:
+        raise ValueError(f"Missing 'repos' field in rule {rule[type]}")
+
     if "limit" in rule and not isinstance(rule["limit"], int):
-        raise ValueError("'limit' field in rule must be an integer")
+        raise ValueError(f"'limit' field in rule {rule[type]} must be an integer")
+
     if "days" in rule and not isinstance(rule["days"], int):
-        raise ValueError("'days' field in rule must be an integer")
+        raise ValueError(f"'days' field in rule {rule[type]} must be an integer")
 
 
 def validate_policy(policy):
@@ -75,15 +75,29 @@ def validate_policy(policy):
     for rule in policy["rules"]:
         validate_rule(rule)
 
+def get_one_rule_by_type(rules, type):
+    for rule in rules:
+        if rule['type'] == type:
+            return rule
+    return
 
-def merge_policies(policies):
+def merge_policies(policies, args):
     # Merge policies with default policies
     for policy in policies:
         for default_policy in DEFAULT_POLICIES[0]['rules']:
-            if default_policy['rule'] not in [p['rule'] for p in policy['rules']]:
+            if default_policy['type'] not in [p['type'] for p in policy['rules']]:
                 policy['rules'].append(default_policy)
-
-    return policies[0]
+    # Merge policies with args
+    for policy in policies:
+        if args.ignore_repos and 'IgnoreRepos' in [p['type'] for p in policy['rules']]:
+            for rule in policy['rules']:
+                if rule['type'] == 'IgnoreRepos':
+                    rule['repos'].extend(args.ignore_repos)
+        if args.ignore_tags and 'IgnoreTags' in [p['type'] for p in policy['rules']]:
+            for rule in policy['rules']:
+                if rule['type'] == 'IgnoreTags':
+                    rule['tags'].extend(args.ignore_tags)
+    return policies
 
 
 def get_field_from_rule(policy, rule, field):
