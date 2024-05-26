@@ -38,12 +38,13 @@ If the `--dry-run` option is specified, the script will log the images that woul
 
 `Filename`: harbor_elcanup_policy.yaml
 
-`type`:
-- DeleteByTimeInName: filter by regexp, and sort by time string in tag name, e.g. 20240505, 20240506120000
-- DeleteByTagName: filter by regexp, sort by name
-- DeleteByCreateTimee: filter by regexp, sort by push time
-- IgnoreRepos: ignore if repo name contains any string in the list
-- IgnoreTags: ignore if tag name contains any string in the list
+`rule type`:
+
+- `DeleteByTimeInName`: filter by regexp, and sort by time string in tag name, e.g. 20240505, 20240506120000
+- `DeleteByTagName`: filter by regexp, sort by name
+- `DeleteByCreateTimee`: filter by regexp, sort by push time
+- `IgnoreRepos`: ignore if repo name contains any string in the list
+- `IgnoreTags`: ignore if tag name contains any string in the list
 
 `Example`:
 
@@ -51,7 +52,8 @@ If the `--dry-run` option is specified, the script will log the images that woul
 policies:
   - name: Policies for cleanup docker images
     rules:
-      - type: DeleteByTimeInName
+      - name: 'keep master clean'
+        type: DeleteByTimeInName
         regexp: '^master_.*'
         limit: 10
       - type: DeleteByTagName
@@ -61,23 +63,26 @@ policies:
         regexp: '^p0_.*'
         limit: 2
       - type: DeleteByTagName
-        regexp: '^cqtel_.*'
+        regexp: '^project_.*'
         limit: 3
       - type: DeleteByTagName
-        regexp: '^ctchq_.*'
-        limit: 20
+        regexp: '^p1.*'
+        limit: 10
       - type: DeleteByCreateTime
         regexp: '.*'
         days: 45
       - type: IgnoreRepos
         repos:
           - "base"
+          - "ci"
+          - "mysql"
       - type: IgnoreTags
         tags:
-          - "lastest"
+          - "latest"
           - "2.0.0"
           - "1.0.0"
           - "1.5.0"
+
 ```
 
 `Tips`:
